@@ -2942,8 +2942,11 @@ found:
 		if (!*monologue)
 			return "From-tag given, but no such tag exists";
 	}
-	if (*monologue)
+	if (*monologue) {
+		//Resetting last_signal time to avoid immediate kernelize
+		call->last_signal = rtpe_now.tv_sec;
 		__monologue_unconfirm(*monologue, "media blocking signalling event");
+	}
 	return NULL;
 }
 static const char *media_block_match(call_t **call, struct call_monologue **monologue,

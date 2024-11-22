@@ -643,25 +643,37 @@ int dtmf_event_payload(str *buf, uint64_t *pts, uint64_t duration, struct dtmf_e
 	struct dtmf_event prev_event = *cur_event;
 	struct dtmf_event *ev = t_queue_peek_head(events);
 	while (events->length) {
-		ilog(LOG_DEBUG, "Next DTMF event starts at %" PRIu64 ". PTS now %" PRIu64, ev->ts, *pts);
+		ilog(LOG_INFO, "Next DTMF event starts at %" PRIu64 ". PTS now %" PRIu64, ev->ts, *pts);
 		if (ev->ts > *pts)
 			break; // future event
 
-		ilog(LOG_DEBUG, "DTMF state change at %" PRIu64 ": %i -> %i, duration %" PRIu64, ev->ts,
+		ilog(LOG_INFO, "DTMF state change at %" PRIu64 ": %i -> %i, duration %" PRIu64, ev->ts,
 				cur_event->code, ev->code, duration);
 		t_queue_pop_head(events);
 		*cur_event = *ev;
 		dtmf_event_free(ev);
 		ev = t_queue_peek_head(events);
-		if (ev && ev->code == 0 && cur_event->ts < *pts) {
+		if (ev && cur_event->ts < *pts) {
 			// if the start event ts was before *pts we need
 			// to adjust the end event_ts to ensure we're not shortening
 			// the event
-			ilog(LOG_DEBUG, "Delayed send of DTMF, adjusting end event_ts by "
+
+			uint64_t diff = *pts - cur_event->ts;
+			ilog(LOG_INFO, "Delayed send of DTMF, adjusting subsequent event_ts by "
 					"%" PRIu64 " - %" PRIu64 " = %" PRIu64,
-					*pts, cur_event->ts, *pts - cur_event->ts);
-			ev->ts += *pts - cur_event->ts;
+					*pts, cur_event->ts, diff);
+
+			uint n=1;
+
+			do {
+				ev->ts += diff;
+				ev=t_queue_peek_nth(events, n++);
+			} while ( ev != NULL );
+
+			cur_event->ts = *pts; // canonicalise start TS
+			break;
 		}
+
 		cur_event->ts = *pts; // canonicalise start TS
 	}
 
@@ -830,7 +842,7 @@ const char *dtmf_inject(struct call_media *media, int code, int volume, int dura
 		if (ch->output_handler && ch->output_handler->ssrc_hash) // context switch if we have multiple inputs going to one output
 			ch = ch->output_handler;
 
-		ilog(LOG_DEBUG, "DTMF injection: Using PT %i/%i -> %i (%i), SSRC %" PRIx32,
+		ilog(LOG_INFO, "DTMF injection: Using PT %i/%i -> %i (%i), SSRC %" PRIx32,
 				pt,
 				ch->source_pt.payload_type,
 				ch->dest_pt.payload_type,
@@ -859,7 +871,7 @@ const char *dtmf_inject(struct call_media *media, int code, int volume, int dura
 		return dtmf_inject_pcm(media, sink, monologue, ps, ssrc_in, ch, csh, code, volume, duration,
 				pause);
 
-	ilog(LOG_DEBUG, "Injecting RFC DTMF event #%i for %i ms (vol %i) from '" STR_FORMAT "' (media #%u) "
+	ilog(LOG_INFO, "Injecting RFC DTMF event #%i for %i ms (vol %i) from '" STR_FORMAT "' (media #%u) "
 			"into RTP PT %i, SSRC %" PRIx32,
 			code, duration, volume, STR_FMT(&monologue->tag), media->index, pt,
 			ssrc_in->parent->h.ssrc);
