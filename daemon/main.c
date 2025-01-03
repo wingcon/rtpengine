@@ -275,6 +275,9 @@ static int if_addr_parse(intf_config_q *q, char *s, struct ifaddrs *ifas) {
 	GQueue addrs = G_QUEUE_INIT;
 	struct intf_config *ifa;
 
+	while (*s == ' ')
+		s++;
+
 	/* name */
 	c = strpbrk(s, "/=");
 	if (c) {
@@ -1606,7 +1609,6 @@ int main(int argc, char **argv) {
 	redis_close(rtpe_redis_notify);
 
 	free_prefix();
-	options_free();
 	log_free();
 	janus_free();
 
@@ -1630,6 +1632,7 @@ int main(int argc, char **argv) {
 #endif
 	bufferpool_destroy(shm_bufferpool);
 	kernel_shutdown_table();
+	options_free();
 	bufferpool_cleanup();
 
 	return 0;
