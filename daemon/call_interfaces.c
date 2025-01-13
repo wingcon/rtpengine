@@ -2040,6 +2040,15 @@ void call_ng_main_flags(sdp_ng_flags *out, str *key, bencode_item_t *value,
 				ilog(LOG_WARN, "Failed to parse 'xmlrpc-callback' address '" STR_FORMAT "'",
 						STR_FMT(&s));
 			break;
+		case CSH_LOOKUP("srtp-master-key"):
+			out->srtp_master_key = s;
+			break;
+		case CSH_LOOKUP("srtp-master-salt"):
+			out->srtp_master_salt = s;
+			break;
+		case CSH_LOOKUP("srtp-mki"):
+			out->srtp_mki = s;
+			break;
 		default:
 			ilog(LOG_WARN, "Unknown dictionary key encountered: '" STR_FORMAT "'", STR_FMT(key));
 	}

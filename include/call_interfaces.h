@@ -141,6 +141,9 @@ struct sdp_ng_flags {
 	str vsc_pause_rec;
 	str vsc_pause_resume_rec;
 	str vsc_start_pause_resume_rec;
+	str srtp_master_key;
+	str srtp_master_salt;
+	str srtp_mki;
 
 	unsigned int asymmetric:1,
 	             protocol_accept:1,

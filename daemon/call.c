@@ -1737,13 +1737,40 @@ static void __generate_crypto(const sdp_ng_flags *flags, struct call_media *this
 
 				struct crypto_params_sdes *cps = g_slice_alloc0(sizeof(*cps));
 				t_queue_push_tail(cpq, cps);
+				gsize decoded;
 
 				cps->tag = c_tag++;
 				cps->params.crypto_suite = &crypto_suites[i];
-				random_string((unsigned char *) cps->params.master_key,
-						cps->params.crypto_suite->master_key_len);
-				random_string((unsigned char *) cps->params.master_salt,
-						cps->params.crypto_suite->master_salt_len);
+				if (flags->srtp_master_key.len) {
+					str* buffer = str_dup(&flags->srtp_master_key);
+					g_base64_decode_inplace(buffer->s, &decoded);
+					memcpy(cps->params.master_key, buffer->s, decoded);
+					ilogs(crypto, LOG_INFO, "Copied %lu bytes SRTP master key", decoded);
+					g_free(buffer);
+				} else {
+					random_string((unsigned char *) cps->params.master_key,
+							cps->params.crypto_suite->master_key_len);
+				}
+				if (flags->srtp_master_salt.len) {
+					str* buffer = str_dup(&flags->srtp_master_salt);
+					g_base64_decode_inplace(buffer->s, &decoded);
+					memcpy(cps->params.master_salt, buffer->s, decoded);
+					ilogs(crypto, LOG_INFO, "Copied %lu bytes SRTP master salt", decoded);
+					g_free(buffer);
+				} else {
+					random_string((unsigned char *) cps->params.master_salt,
+							cps->params.crypto_suite->master_salt_len);
+				}
+				if (flags->srtp_mki.len) {
+					str* buffer = str_dup(&flags->srtp_mki);
+					g_base64_decode_inplace(buffer->s, &decoded);
+					cps->params.mki = malloc(decoded);
+					cps->params.mki_len = decoded;
+					memcpy(cps->params.mki, buffer->s, decoded);
+					ilogs(crypto, LOG_INFO, "Copied %lu bytes SRTP MKI", decoded);
+					g_free(buffer);
+				}
+
 				/* mki = mki_len = 0 */
 
 				__sdes_flags(cps, flags);
@@ -1842,6 +1869,7 @@ cps_match:
 			crypto_params_sdes_queue_clear(cpq);
 			cps = g_slice_alloc0(sizeof(*cps));
 			t_queue_push_tail(cpq, cps);
+			gsize decoded;
 
 			cps->tag = cps_in->tag;
 			cps->params.crypto_suite = cps_in->params.crypto_suite;
@@ -1853,10 +1881,35 @@ cps_match:
 						cps_in->tag, cps_in->params.crypto_suite->name);
 			}
 			else {
-				random_string((unsigned char *) cps->params.master_key,
-						cps->params.crypto_suite->master_key_len);
-				random_string((unsigned char *) cps->params.master_salt,
-						cps->params.crypto_suite->master_salt_len);
+				if (flags->srtp_master_key.len) {
+					str* buffer = str_dup(&flags->srtp_master_key);
+					g_base64_decode_inplace(buffer->s, &decoded);
+					memcpy(cps->params.master_key, buffer->s, decoded);
+					ilogs(crypto, LOG_INFO, "Copied %lu bytes SRTP master key", decoded);
+					g_free(buffer);
+				} else {
+					random_string((unsigned char *) cps->params.master_key,
+							cps->params.crypto_suite->master_key_len);
+				}
+				if (flags->srtp_master_salt.len) {
+					str* buffer = str_dup(&flags->srtp_master_salt);
+					g_base64_decode_inplace(buffer->s, &decoded);
+					memcpy(cps->params.master_salt, buffer->s, decoded);
+					ilogs(crypto, LOG_INFO, "Copied %lu bytes SRTP master salt", decoded);
+					g_free(buffer);
+				} else {
+					random_string((unsigned char *) cps->params.master_salt,
+							cps->params.crypto_suite->master_salt_len);
+				}
+				if (flags->srtp_mki.len) {
+					str* buffer = str_dup(&flags->srtp_mki);
+					g_base64_decode_inplace(buffer->s, &decoded);
+					cps->params.mki = malloc(decoded);
+					cps->params.mki_len = decoded;
+					memcpy(cps->params.mki, buffer->s, decoded);
+					ilogs(crypto, LOG_INFO, "Copied %lu bytes SRTP MKI", decoded);
+					g_free(buffer);
+				}
 				/* mki = mki_len = 0 */
 				cps->params.session_params = cps_in->params.session_params;
 				ilogs(crypto, LOG_DEBUG, "Creating new SRTP crypto params for %i:%s",
@@ -2483,7 +2536,7 @@ static void codecs_offer(struct call_media *media, struct call_media *other_medi
 
 	// finally set up handlers again based on final results
 
-	codec_handlers_update(media, other_media, .flags = flags, .sp = sp, 
+	codec_handlers_update(media, other_media, .flags = flags, .sp = sp,
 			.allow_asymmetric = !!(flags->allow_asymmetric_codecs),
 			.reset_transcoding = true);
 }
@@ -4149,11 +4202,11 @@ restart:
 }
 
 /** returns call with master_lock held in W, or NULL if not found
- * 
+ *
  * The lookup of a call is performed via its call-ID.
  * A reference to the call object is returned with
  * the reference-count increased by one.
- * 
+ *
  * Therefore the code must use obj_put() on the call after call_get()
  * and after it's done operating on the object.
  */
