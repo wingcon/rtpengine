@@ -1424,7 +1424,7 @@ static int __rtp_stats_pt_sort(const void *ap, const void *bp) {
 
 /**
  * The linkage between userspace and kernel module is in the kernelize_one().
- * 
+ *
  * Called with in_lock held.
  * sink_handler can be NULL.
  */
@@ -2585,7 +2585,7 @@ static int media_packet_queue_dup(codec_packet_q *q) {
 
 /**
  * Packet handling starts in stream_packet().
- * 
+ *
  * This operates on the originating stream_fd (fd which received the packet)
  * and on its linked packet_stream.
  *

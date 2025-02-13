@@ -55,6 +55,7 @@ struct dtmf_event {
 	uint64_t ts;
 	int rand_code; // state for random replace mode
 	unsigned int index; // running counter of events
+	bool fix_ts; // WINGCON indication to fix ts before playing
 	enum block_dtmf_mode block_dtmf; // block mode at the time of the event
 };
 

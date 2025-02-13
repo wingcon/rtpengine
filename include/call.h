@@ -414,17 +414,17 @@ struct loop_protector {
  * - SRTP endpoint
  * - ICE endpoint
  * - send/receive-only
- * 
+ *
  * This is done through the various bit flags.
  */
 struct packet_stream {
 	/* Both locks valid only with call->master_lock held in R.
 	 * Preempted by call->master_lock held in W.
 	 * If both in/out are to be locked, in_lock must be locked first.
-	 * 
+	 *
 	 * The in_lock protects fields relevant to packet reception on that stream,
 	 * meanwhile the out_lock protects fields relevant to packet egress.
-	 * 
+	 *
 	 * This allows packet handling on multiple ports and streams belonging
 	 * to the same call to happen at the same time.
 	 */
@@ -487,7 +487,7 @@ INLINE uint64_t packet_stream_last_packet(const struct packet_stream *ps) {
 
 /**
  * Protected by call->master_lock, except the RO elements.
- * 
+ *
  * call_media is not reference-counted and is completely owned by the call object.
  * Therefore call_media is released when the call is destroyed.
  */
@@ -574,10 +574,10 @@ struct media_subscription {
 /**
  * Half a dialogue.
  * Protected by call->master_lock, except the RO elements.
- * 
+ *
  * call_monologue (call participant) contains a list of subscribers
  * and subscriptions, which are other call_monologue's.
- * 
+ *
  * These lists are mutual.
  * A regular A/B call has two call_monologue objects with each subscribed to the other.
  */
@@ -632,6 +632,7 @@ struct call_monologue {
 	int			dtmf_trigger_digits; // unblock after this many digits
 	enum block_dtmf_mode	block_dtmf_trigger_end; // to enable when trigger detected
 	unsigned int		block_dtmf_trigger_end_ms; // unblock after this many ms
+	time_t			dtmf_injection_time; // time when DTMF_INJECTION_ACTIVE gets set
 
 	/* carry `sdp_session` attributes into resulting call monologue SDP */
 	sdp_attr_q		sdp_attributes;
@@ -697,21 +698,21 @@ TYPED_GHASHTABLE(labels_ht, str, struct call_monologue, str_hash, str_equal, NUL
 
 /**
  * call_t is the main parent structure of all call-related objects.
- * 
+ *
  * The logical object hierarchy under the 'struct call':
  * call > call_monologue > call_media > packet_stream > stream_fd
- * 
+ *
  * call_t usually has multiple call_monologue objects.
  * Meanwhile each sub-object of call, as a parent of own sub-objects,
  * can also contain multiple child objects.
- * 
+ *
  * Furthermore, each child object contains a back ptr to its parent object.
- * 
+ *
  * The parent call object contains one list (as GQueue) for each kind of child object.
  * These lists are what is used to free and release the child objects
  * during a call teardown.
  * Every child object owned by the call is added to its respective list exactly once.
- * 
+ *
  * Call object is reference-counted through the struct obj.
  */
 struct call {
@@ -720,7 +721,7 @@ struct call {
 	 *
 	 * obj is created with a cleanup handler, see obj_alloc(),
 	 * and this handler is executed whenever the reference count drops to zero.
-	 * 
+	 *
 	 * References are acquired and released through obj_get() and obj_put()
 	 * (plus some other wrapper functions).
 	 */
@@ -733,11 +734,11 @@ struct call {
 	struct poller		*poller;
 
 	/* master_lock protects the entire call and all the contained objects.
-	 * 
+	 *
 	 * All the fields and any nested sub-object must:
 	 * - only be accessed with the master_lock held as a read lock
 	 * - only be modified with the master_lock held as a write lock
-	 * 
+	 *
 	 * Therefore, during signalling events acquire a write-lock,
 	 * and during RTP packets handling acquire a read-lock.
 	 */

@@ -643,7 +643,26 @@ int dtmf_event_payload(str *buf, uint64_t *pts, uint64_t duration, struct dtmf_e
 	struct dtmf_event prev_event = *cur_event;
 	struct dtmf_event *ev = t_queue_peek_head(events);
 	while (events->length) {
-		ilog(LOG_INFO, "Next DTMF event starts at %" PRIu64 ". PTS now %" PRIu64, ev->ts, *pts);
+
+		// WINGCON:
+		// if we get a event TS with 0, we treat this as immediate
+		// and we go through all subsequent events to adjust the TS where needed.
+
+		if (ev->ts == 0) {
+			ev->ts = *pts;
+
+			struct dtmf_event *peek_ev;
+			uint n=1;
+
+			do {
+				peek_ev=t_queue_peek_nth(events, n++);
+				if ( peek_ev != NULL && peek_ev->fix_ts )
+					peek_ev->ts += *pts;
+			} while ( peek_ev != NULL );
+		}
+
+		ilog(LOG_DEBUG, "Next DTMF event starts at %" PRIu64 ". PTS now %" PRIu64, ev->ts, *pts);
+
 		if (ev->ts > *pts)
 			break; // future event
 
@@ -871,20 +890,87 @@ const char *dtmf_inject(struct call_media *media, int code, int volume, int dura
 		return dtmf_inject_pcm(media, sink, monologue, ps, ssrc_in, ch, csh, code, volume, duration,
 				pause);
 
+	if ( duration == 990 ) {
+
+		ilog(LOG_INFO, "Injecting VGCS Kill Sequence (***) into stream (SSRC=%" PRIx32 ", PT=%i)",
+			ssrc_in->parent->h.ssrc, pt);
+
+		uint64_t samples = (uint64_t) 80 * ch->dest_pt.clock_rate / 1000;
+
+		codec_add_dtmf_event(csh, dtmf_code_to_char(10), volume, 0, true, true);
+		codec_add_dtmf_event(csh, 0, 0, samples, true, true);
+		codec_add_dtmf_event(csh, dtmf_code_to_char(10), volume, 2 * samples, true, true);
+		codec_add_dtmf_event(csh, 0, 0, 3 * samples, true, true);
+		codec_add_dtmf_event(csh, dtmf_code_to_char(10), volume, 4 * samples, true, true);
+		codec_add_dtmf_event(csh, 0, 0, 5 * samples, true, true);
+
+		obj_put_o((struct obj *) csh);
+		return NULL;
+	}
+
+	if ( duration == 991 ) {
+
+		ilog(LOG_INFO, "Injecting VGCS Mute Sequence (#**) into stream (SSRC=%" PRIx32 ", PT=%i)",
+			ssrc_in->parent->h.ssrc, pt);
+
+		uint64_t samples = (uint64_t) 80 * ch->dest_pt.clock_rate / 1000;
+
+		codec_add_dtmf_event(csh, dtmf_code_to_char(11), volume, 0, true, true);
+		codec_add_dtmf_event(csh, 0, 0, samples, true, true);
+		codec_add_dtmf_event(csh, dtmf_code_to_char(10), volume, 2 * samples, true, true);
+		codec_add_dtmf_event(csh, 0, 0, 3 * samples, true, true);
+		codec_add_dtmf_event(csh, dtmf_code_to_char(10), volume, 4 * samples, true, true);
+		codec_add_dtmf_event(csh, 0, 0, 5 * samples, true, true);
+
+		obj_put_o((struct obj *) csh);
+		return NULL;
+	}
+
+	if ( duration == 992 ) {
+
+		ilog(LOG_INFO, "Injecting VGCS Unmute Sequence (###) into stream (SSRC=%" PRIx32 ", PT=%i)",
+			ssrc_in->parent->h.ssrc, pt);
+
+		uint64_t samples = (uint64_t) 80 * ch->dest_pt.clock_rate / 1000;
+
+		codec_add_dtmf_event(csh, dtmf_code_to_char(11), volume, 0, true, true);
+		codec_add_dtmf_event(csh, 0, 0, samples, true, true);
+		codec_add_dtmf_event(csh, dtmf_code_to_char(11), volume, 2 * samples, true, true);
+		codec_add_dtmf_event(csh, 0, 0, 3 * samples, true, true);
+		codec_add_dtmf_event(csh, dtmf_code_to_char(11), volume, 4 * samples, true, true);
+		codec_add_dtmf_event(csh, 0, 0, 5 * samples, true, true);
+
+		obj_put_o((struct obj *) csh);
+		return NULL;
+	}
+
 	ilog(LOG_INFO, "Injecting RFC DTMF event #%i for %i ms (vol %i) from '" STR_FORMAT "' (media #%u) "
-			"into RTP PT %i, SSRC %" PRIx32,
-			code, duration, volume, STR_FMT(&monologue->tag), media->index, pt,
-			ssrc_in->parent->h.ssrc);
+		"into RTP PT %i, SSRC %" PRIx32,
+		code, duration, volume, STR_FMT(&monologue->tag), media->index, pt,
+		ssrc_in->parent->h.ssrc);
 
 	// synthesise start and stop events
 	// the num_samples needs to be based on the the previous packet timestamp so we need to
 	// reduce it by one packets worth or we'll generate one too many packets than requested
 	uint64_t num_samples = (uint64_t) (duration - ch->dest_pt.ptime) * ch->dest_pt.clock_rate / 1000;
+
+	// WINGCON:
+	// After having problems with wrong values for start_ts, we implemented a work-around:
+	// events are injected with TS=0 and the TS gets set to the current value in dtmf_event_payload()
+
 	uint64_t start_pts = codec_encoder_pts(csh, ssrc_in);
+	bool fix_ts = false;
+
+	if ( start_pts > UINT32_MAX ) {
+		start_pts = 0;
+		fix_ts = true;
+	}
+
 	// get the last event end time, and increase by the required pause
 	// conversely to the above, we need to add the last packet num samples to its TS before adding
 	// a pause so we dont generate one packet too few
 	// if that's later than start_pts, we need to adjust it
+
 	uint64_t last_end_pts = codec_last_dtmf_event(csh);
 	if (last_end_pts) {
 		last_end_pts += (pause + ch->dest_pt.ptime) * ch->dest_pt.clock_rate / 1000;
@@ -892,8 +978,8 @@ const char *dtmf_inject(struct call_media *media, int code, int volume, int dura
 			start_pts = last_end_pts;
 	}
 
-	codec_add_dtmf_event(csh, dtmf_code_to_char(code), volume, start_pts, true);
-	codec_add_dtmf_event(csh, 0, 0, start_pts + num_samples, true);
+	codec_add_dtmf_event(csh, dtmf_code_to_char(code), volume, start_pts, true, fix_ts);
+	codec_add_dtmf_event(csh, 0, 0, start_pts + num_samples, true, fix_ts);
 
 	obj_put_o((struct obj *) csh);
 	return NULL;

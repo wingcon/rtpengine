@@ -3642,6 +3642,7 @@ const char *call_play_dtmf_ng(bencode_item_t *input, bencode_item_t *output) {
 
 found:
 		ML_SET(monologue, DTMF_INJECTION_ACTIVE);
+		monologue->dtmf_injection_time = time(NULL);
 		dialogue_unconfirm(monologue, "DTMF playback");
 
 		for (unsigned int i = 0; i < monologue->medias->len; i++)

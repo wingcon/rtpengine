@@ -1777,7 +1777,11 @@ static int handler_func_passthrough(struct codec_handler *h, struct media_packet
 		}
 	}
 
-	ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
+	//WINGCON: This was causing problems with streams being sent to kernel before all DTMF digits were played
+
+	if ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3) {
+		ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
+	}
 
 	__buffer_delay_raw(h->delay_buffer, h, codec_add_raw_packet, mp, h->source_pt.clock_rate);
 
@@ -2348,8 +2352,9 @@ static tc_code packet_dtmf(struct codec_ssrc_handler *ch, struct codec_ssrc_hand
 
 
 		}
-		else if (!input_ch->dtmf_events.length)
+		else if (!input_ch->dtmf_events.length && ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3)) {
 			ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
+		}
 
 	}
 
@@ -2628,7 +2633,7 @@ static int handler_func_passthrough_ssrc(struct codec_handler *h, struct media_p
 
 				add_packet_fn = codec_add_raw_packet_dup;
 			}
-			else if (!ch->dtmf_events.length)
+			else if (!ch->dtmf_events.length && ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3))
 				ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
 
 			obj_put(&ch->h);
@@ -2682,11 +2687,11 @@ static void __dtmf_dsp_callback(void *ptr, int code, int level, int delay) {
 	uint64_t ts = ch->last_dtmf_event_ts + delay;
 	ch->last_dtmf_event_ts = ts;
 	ts = av_rescale(ts, ch->encoder_format.clockrate, ch->dtmf_format.clockrate);
-	codec_add_dtmf_event(ch, code, level, ts, false);
+	codec_add_dtmf_event(ch, code, level, ts, false, false);
 }
 
-void codec_add_dtmf_event(struct codec_ssrc_handler *ch, int code, int level, uint64_t ts, bool injected) {
-	struct dtmf_event new_ev = { .code = code, .volume = level, .ts = ts };
+void codec_add_dtmf_event(struct codec_ssrc_handler *ch, int code, int level, uint64_t ts, bool injected, bool fix_ts) {
+	struct dtmf_event new_ev = { .code = code, .volume = level, .ts = ts, .fix_ts = fix_ts };
 	ilogs(transcoding, LOG_DEBUG, "DTMF event state change: code %i, volume %i, TS %lu",
 			new_ev.code, new_ev.volume, (unsigned long) ts);
 	dtmf_dsp_event(&new_ev, &ch->dtmf_state, ch->handler->media, ch->handler->source_pt.clock_rate,
