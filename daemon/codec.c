@@ -1779,7 +1779,9 @@ static int handler_func_passthrough(struct codec_handler *h, struct media_packet
 
 	//WINGCON: This was causing problems with streams being sent to kernel before all DTMF digits were played
 
-	if ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3) {
+	if ( ML_ISSET(mp->media->monologue, DTMF_INJECTION_ACTIVE)
+	  && (time(NULL) - mp->media->monologue->dtmf_injection_time) > 3 )
+	{
 		ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
 	}
 
@@ -2352,7 +2354,10 @@ static tc_code packet_dtmf(struct codec_ssrc_handler *ch, struct codec_ssrc_hand
 
 
 		}
-		else if (!input_ch->dtmf_events.length && ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3)) {
+		else if ( !input_ch->dtmf_events.length
+			&& ML_ISSET(mp->media->monologue, DTMF_INJECTION_ACTIVE)
+			&& ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3) )
+		{
 			ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
 		}
 
@@ -2633,8 +2638,11 @@ static int handler_func_passthrough_ssrc(struct codec_handler *h, struct media_p
 
 				add_packet_fn = codec_add_raw_packet_dup;
 			}
-			else if (!ch->dtmf_events.length && ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3))
-				ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
+			else if ( !ch->dtmf_events.length
+				&& ML_ISSET(mp->media->monologue, DTMF_INJECTION_ACTIVE)
+				&& ((time(NULL) - mp->media->monologue->dtmf_injection_time) > 3) ) {
+					ML_CLEAR(mp->media->monologue, DTMF_INJECTION_ACTIVE);
+				}
 
 			obj_put(&ch->h);
 		}
