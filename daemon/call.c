@@ -377,7 +377,7 @@ retry:
 
 		xmlrpc_env_init(&e);
 		xmlrpc_client_setup_global_const(&e);
-		xmlrpc_client_create(&e, XMLRPC_CLIENT_NO_FLAGS, "rtpengine", RTPENGINE_VERSION,
+		xmlrpc_client_create(&e, XMLRPC_CLIENT_NO_FLAGS, "ngcp-rtpengine", RTPENGINE_VERSION,
 			NULL, 0, &c);
 		if (e.fault_occurred)
 			goto fault;
