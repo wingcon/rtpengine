@@ -184,10 +184,8 @@ static void call_timer_iterator(call_t *c, struct iterator_helper *hlp) {
 		if (!ps->media)
 			goto next;
 
-		if (MEDIA_ISSET(ps->media, IGNORE_TIMEOUT)) {
-			ilog(LOG_DEBUG, "Ignoring timeout for subscribed media idx=%u", ps->media->index);
+		if (MEDIA_ISSET(ps->media, IGNORE_TIMEOUT))
 			goto next;
-		}
 
 		sfd = ps->selected_sfd;
 		if (!sfd)
@@ -3474,8 +3472,8 @@ static int monologue_subscribe_request1(struct call_monologue *src_ml, struct ca
 			MEDIA_CLEAR(dst_media, SEND);
 		MEDIA_CLEAR(dst_media, RECV);
 
-                if (flags->ignore_timeout)
-		        MEDIA_SET(dst_media, IGNORE_TIMEOUT);
+        if (flags->ignore_timeout)
+		    MEDIA_SET(dst_media, IGNORE_TIMEOUT);
 
 		__rtcp_mux_set(flags, dst_media);
 		__generate_crypto(flags, dst_media, src_media);
